@@ -10,9 +10,7 @@ using std::cout;
 using std::endl;
 using std::vector;
 
-/**
- * Constructor.
- */
+
 FusionEKF::FusionEKF() {
   
   // Set flag for initialization with first sensor measurements
@@ -48,15 +46,14 @@ FusionEKF::FusionEKF() {
                        0, 0, 0, 0; 
 }
 
-/**
- * Destructor.
- */
+
 FusionEKF::~FusionEKF() {}
 
+
 void FusionEKF::ProcessMeasurement(const MeasurementPackage &measurement_pack) {
-  /**
-   * Initialization
-   */
+  
+  // I N I T I A L I Z A T I O N 
+  // Initialize Kalman Filter once first measurement arrives
   if (!is_initialized_) {
     
     // Set timestamp
@@ -66,7 +63,7 @@ void FusionEKF::ProcessMeasurement(const MeasurementPackage &measurement_pack) {
     ekf_.x_ = VectorXd(4);
     ekf_.x_ << 1, 1, 1, 1;
 
-    // Initialize P 
+    // Initialize P (x and y positions are considered to be more certain)
     ekf_.P_ = MatrixXd(4, 4); 
     ekf_.P_ << 1.0, 0, 0, 0, 
                0, 1.0, 0, 0, 
@@ -75,8 +72,8 @@ void FusionEKF::ProcessMeasurement(const MeasurementPackage &measurement_pack) {
 
     // Set first measurement as initial state values
     // Distinguish lidar and radar measurements
+    // x and y velocities are assumed to be 1
     if (measurement_pack.sensor_type_ == MeasurementPackage::RADAR) {
-      //cout << "RADAR measruement arrived" << endl; 
       float rho = measurement_pack.raw_measurements_[0];  
       float phi = measurement_pack.raw_measurements_[1]; 
       float px = rho * cos(phi); 
@@ -84,28 +81,21 @@ void FusionEKF::ProcessMeasurement(const MeasurementPackage &measurement_pack) {
       ekf_.x_ << px, py, 1, 1;   
     }
     else if (measurement_pack.sensor_type_ == MeasurementPackage::LASER) {
-      //cout << "LIDAR measurement arrived" << endl; 
       float px = measurement_pack.raw_measurements_[0]; 
       float py = measurement_pack.raw_measurements_[1]; 
       ekf_.x_ << px, py, 1, 1; 
     }
 
     // done initializing, no need to predict or update
-    is_initialized_ = true;
-    //cout << "Initialization is done." << endl; 
+    is_initialized_ = true; 
     return;
   }
 
-  /**
-   * Prediction
-   */
+  // P R E D I C T I O N  
   // Get deltaT and update current time stamp for next iteration
   long long dT_in_micro_sec = measurement_pack.timestamp_ - previous_timestamp_; 
   double dT = dT_in_micro_sec * 1e-6; 
-  //double dT = 0.05; 
-  //cout << "Delta T in microsec" << dT_in_micro_sec << endl; 
   previous_timestamp_ = measurement_pack.timestamp_;
-  //cout << "Delta T = " << dT << endl;    
   // Set (i.e. update) the Transition matrix F (which depends on delta t)
   ekf_.F_ = MatrixXd(4, 4); 
   ekf_.F_ << 1, 0, dT, 0, 
@@ -124,12 +114,9 @@ void FusionEKF::ProcessMeasurement(const MeasurementPackage &measurement_pack) {
              (dT_3/2.0)*acc_x, 0, dT_2*acc_x, 0, 
              0, (dT_3/2.0)*acc_y, 0, dT_2*acc_y; 
   // Call predict function
-  //cout << "Calling Prediction method" << endl; 
   ekf_.Predict();
 
-  /**
-   * Update
-   */
+  // U P D A T E 
   // Radar measurement  
   if (measurement_pack.sensor_type_ == MeasurementPackage::RADAR) {
     // Get the jacobian for radar measurments 
@@ -137,19 +124,18 @@ void FusionEKF::ProcessMeasurement(const MeasurementPackage &measurement_pack) {
     // Set radar related EKF matrices
     ekf_.R_ = R_radar_; 
     ekf_.H_ = H_radar_jacobian_;
-    //cout << "Calling Update EKF for radar signal" << endl; 
+    // Call corresponding update function
     ekf_.UpdateEKF(measurement_pack.raw_measurements_);  
   // Lidar measurement
   } else {
     // Set lidar related EKF matrices
     ekf_.R_ = R_laser_; 
     ekf_.H_ = H_laser_;
-    // Call update function
-    //cout << "Calling Update for lidar signal" << endl; 
+    // Call corresponding update function
     ekf_.Update(measurement_pack.raw_measurements_); 
   }
   
-  // print the output
+  // print the outcome of the EKF iteration
   cout << "x_ = " << ekf_.x_ << endl;
   cout << "P_ = " << ekf_.P_ << endl;
 }

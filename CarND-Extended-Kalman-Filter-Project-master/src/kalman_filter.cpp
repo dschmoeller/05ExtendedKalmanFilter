@@ -6,14 +6,12 @@ using Eigen::VectorXd;
 using std::cout;
 using std::endl;
 
-/* 
- * Please note that the Eigen library does not initialize 
- *   VectorXd or MatrixXd objects with zeros upon creation.
- */
 
 KalmanFilter::KalmanFilter() {}
 
+
 KalmanFilter::~KalmanFilter() {}
+
 
 void KalmanFilter::Init(VectorXd &x_in, MatrixXd &P_in, MatrixXd &F_in,
                         MatrixXd &H_in, MatrixXd &R_in, MatrixXd &Q_in) {
@@ -25,27 +23,28 @@ void KalmanFilter::Init(VectorXd &x_in, MatrixXd &P_in, MatrixXd &F_in,
   Q_ = Q_in;
 }
 
+
 void KalmanFilter::Predict() {
-  //cout << "Kalman Filter Predict" << endl; 
+  // Implement Kalman Filter equations for Prediction
   x_ = F_*x_; 
   P_ = F_* P_*F_.transpose() + Q_;  
 }
 
+
 void KalmanFilter::Update(const VectorXd &z) {
-  // Lidar Update
-  //cout << "Kalman Filter Update for lidar measurment" << endl; 
+  // Implement Kalman Filter equations for LIDAR updates
   VectorXd y = z - H_*x_; 
   MatrixXd S = H_*P_*H_.transpose() + R_; 
   MatrixXd K = P_*H_.transpose()*S.inverse(); 
   MatrixXd I = MatrixXd::Identity(4, 4); 
-
   x_ = x_ + K*y; 
   P_ = (I - K*H_)*P_; 
 }
 
+
 void KalmanFilter::UpdateEKF(const VectorXd &z) {
-  // Radar Update
-  //cout << "Kalman Filter Update EKF for radar measurment" << endl; 
+  // Transform state values px, py, vx, vy into radar based values rho, phi, rho_dot
+  // Check against division by near zero
   float px = x_[0]; 
   float py = x_[1]; 
   float vx = x_[2];
@@ -59,12 +58,12 @@ void KalmanFilter::UpdateEKF(const VectorXd &z) {
   else{
     rho_dot = 0; 
   }
-
   VectorXd h_of_x = VectorXd(3);
   h_of_x << rho, phi, rho_dot;  
 
+  // Implement Extended Kalman Filter equations for RADAR updates
   VectorXd y = z - h_of_x; 
-  // Check phi value of y vector if it's between -pi and pi
+  // Update phi value of residual if it's out of bounce, i.e greater or less +pi and -pi
   float y_phi = y[1];
   while( y_phi < - M_PI ){
     y_phi += M_PI; 
@@ -72,13 +71,12 @@ void KalmanFilter::UpdateEKF(const VectorXd &z) {
   while( y_phi >  M_PI ){
     y_phi -= M_PI; 
   }
-  // Write corrected phi value back into y vector
+  // Write corrected phi value back into residual vector
   y(1) = y_phi; 
-
+  // Continue with remaining Kalman Filter equations
   MatrixXd S = H_*P_*H_.transpose() + R_; 
   MatrixXd K = P_*H_.transpose()*S.inverse(); 
   MatrixXd I = MatrixXd::Identity(4, 4); 
-
   x_ = x_ + K*y; 
   P_ = (I - K*H_)*P_;
 }
